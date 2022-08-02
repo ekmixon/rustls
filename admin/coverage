@@ -21,8 +21,11 @@ def cleanup():
     sh("rm -rf *.gcda *.gcno")
 
 def run(which):
-    exe = filter(lambda x: '.' not in x, glob.glob('target/debug/deps/' + which + '-*'))[0]
-    sh('./' + exe)
+    exe = filter(
+        lambda x: '.' not in x, glob.glob(f'target/debug/deps/{which}-*')
+    )[0]
+
+    sh(f'./{exe}')
 
 def rustc(*args):
     # `--profile` is unstable, so pass `-Zunstable-options` for now
@@ -41,17 +44,19 @@ def lcov(outfile):
 def merge(outfile, infiles):
     arg = []
     for i in infiles:
-        arg.append('--add')
-        arg.append(i)
-    arg.append('-o')
-    arg.append(outfile)
+        arg.extend(('--add', i))
+    arg.extend(('-o', outfile))
     check_call(lcov_exe(*arg))
 
 def remove(outfile, infile, pattern):
     check_call(lcov_exe('--remove', infile, os.getcwd() + pattern, '-o', outfile))
 
 def extract(outfile, infile):
-    check_call(lcov_exe('--extract', infile, os.getcwd() + '/rustls/src/*', '-o', outfile))
+    check_call(
+        lcov_exe(
+            '--extract', infile, f'{os.getcwd()}/rustls/src/*', '-o', outfile
+        )
+    )
 
 def genhtml(outdir, infile):
     check_call(['genhtml', '--branch-coverage', '--demangle-cpp', '--legend',
@@ -65,17 +70,14 @@ def rustc_llvm_version():
 LLVM_VERSION = 13
 llvm_version = rustc_llvm_version()
 if llvm_version != LLVM_VERSION:
-    print('expected rustc to use LLVM {}, found {}'.format(LLVM_VERSION, llvm_version))
+    print(f'expected rustc to use LLVM {LLVM_VERSION}, found {llvm_version}')
     raise SystemExit(-1)
-
-all_infos = []
 
 # unit tests
 cleanup()
 rustc('--package', 'rustls', '--profile', 'test', '--lib')
 run('rustls')
-all_infos.append(lcov('rustls.info'))
-
+all_infos = [lcov('rustls.info')]
 cleanup()
 for example in 'bench bogo_shim trytls_shim'.split():
     rustc('--package', 'rustls', '--profile', 'dev', '--example', example)
